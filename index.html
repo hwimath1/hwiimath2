@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>분자끼리 나누어떨어지는 분수의 나눗셈</title>
+
+  <!-- MathJax 라이브러리 로드 -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #fefefe;
+    }
+    h1, h2, h3 {
+      margin: 0.5em 0;
+    }
+    .energy-bar-container {
+      position: relative;
+      width: 300px;
+      height: 20px;
+      background: #ddd;
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    .energy-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+      background: linear-gradient(to right, #ff6961, #f1c40f, #2ecc71);
+      transition: width 0.2s ease;
+    }
+    #response {
+      white-space: pre-wrap;
+      background: #fafafa;
+      border: 1px solid #ccc;
+      padding: 8px;
+      margin-top: 10px;
+    }
+    .question-box {
+      border: 2px solid #aaa;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+    .options-box {
+      margin-top: 10px;
+    }
+    .option-button {
+      display: block;
+      margin: 4px 0;
+      padding: 8px;
+      border: 1px solid #666;
+      border-radius: 4px;
+      background: #f9f9f9;
+      cursor: pointer;
+      text-align: left;
+    }
+    .option-button:hover {
+      background: #eee;
+    }
+    .status {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    .hidden {
+      display: none;
+    }
+    .highlight {
+      background: #ffec99;
+    }
+  </style>
+</head>
+<body>
+<h1>분자끼리 나누어떨어지는 분수의 나눗셈</h1>
+
+<!-- 난이도 선택 및 이름 입력 -->
+<div id="setupScreen">
+  <h3>이름을 입력하세요:</h3>
+  <input type="text" id="nameInput" placeholder="이름" />
+  
+  <h3>난이도를 선택하세요:</h3>
+  <select id="difficultySelect">
+    <option value="top">최상 (시작시간 20초, 문제당 20점)</option>
+    <option value="high">상 (시작시간 30초, 문제당 15점)</option>
+    <option value="mid">중 (시작시간 40초, 문제당 13점)</option>
+    <option value="low">하 (시간제한 없음, 문제당 10점)</option>
+  </select>
+  
+  <button onclick="startGame()">게임 시작</button>
+</div>
+
+<!-- 게임 진행 화면 -->
+<div id="gameScreen" class="hidden">
+  <!-- 전체 게임시간 표시 -->
+  <div>전체 진행 시간: <span id="elapsedTime">0</span>초</div>
+  
+  <!-- 남은 기회 -->
+  <div>남은 기회: <span id="lives">3</span></div>
+  
+  <!-- 점수 -->
+  <div>점수: <span id="score">0</span></div>
+  
+  <!-- 현재 문제 표시 -->
+  <div id="questionContainer" class="question-box"></div>
+  
+  <!-- 보기(4지선다) 영역 -->
+  <div id="optionsContainer" class="options-box"></div>
+  
+  <!-- 에너지바(시간) -->
+  <div id="energyBarContainer" class="energy-bar-container hidden">
+    <div id="energyBar" class="energy-bar"></div>
+  </div>
+</div>
+
+<!-- 게임 종료 화면 -->
+<div id="endScreen" class="hidden">
+  <h2>게임이 종료되었습니다!</h2>
+  <p>최종 점수: <span id="finalScore">0</span></p>
+  <button onclick="sendScore()">점수 전송</button>
+  <div id="response"></div>
+</div>
+
+<script>
+
+// ----------------------------------------------
+// 1) 문제(45개) 데이터베이스
+//    (문제, 보기 4개, 정답 인덱스)
+// ----------------------------------------------
+// 모든 문제를 하나도 빠짐없이, 순서는 임의로 배치합니다. 
+// (단, 아래 배열에선 순서대로 넣고, 시작 시 shuffleArray()로 무작위화)
+// 각 문제 구조: { question: "...", options: [...], answer: 정답인덱스(0~3) }
+const allQuestions = [
+
+  // ---------------------------
+  // Set 1: 직사각형 넓이 문제 (5문제)
+  // ---------------------------
+  {
+    question: "어떤 직사각형의 세로는 \\(\\dfrac{1}{9}\\)m이고, 넓이는 \\(\\dfrac{7}{9}\\)\\(\\,\\text{m}^2\\)입니다. 이 직사각형의 가로는 몇 m인지 구하세요.",
+    options: ["1", "7", "9", "63"],
+    answer: 1
+  },
+  {
+    question: "어떤 직사각형의 세로는 \\(\\dfrac{2}{5}\\)m이고, 넓이는 \\(\\dfrac{4}{5}\\)\\(\\,\\text{m}^2\\)입니다. 이 직사각형의 가로는 몇 m인지 구하세요.",
+    options: ["1", "2", "2.5", "10"],
+    answer: 1
+  },
+  {
+    question: "어떤 직사각형의 세로는 \\(\\dfrac{3}{7}\\)m이고, 넓이는 \\(\\dfrac{9}{14}\\)\\(\\,\\text{m}^2\\)입니다. 이 직사각형의 가로는 몇 m인지 구하세요.",
+    options: ["1", "1.5", "3", "\\(\\dfrac{2}{3}\\)"],
+    answer: 1
+  },
+  {
+    question: "어떤 직사각형의 세로는 \\(\\dfrac{1}{4}\\)m이고, 넓이는 \\(\\dfrac{1}{2}\\)\\(\\,\\text{m}^2\\)입니다. 이 직사각형의 가로는 몇 m인지 구하세요.",
+    options: ["1", "4", "2", "\\(\\dfrac{1}{8}\\)"],
+    answer: 2
+  },
+  {
+    question: "어떤 직사각형의 세로는 \\(\\dfrac{1}{8}\\)m이고, 넓이는 \\(\\dfrac{3}{8}\\)\\(\\,\\text{m}^2\\)입니다. 이 직사각형의 가로는 몇 m인지 구하세요.",
+    options: ["1", "3", "\\(\\dfrac{3}{8}\\)", "8"],
+    answer: 1
+  },
+
+  // ---------------------------
+  // Set 2: 분수 나눗셈 (14/15 ÷ 2/15 등) (5문제)
+  // ---------------------------
+  {
+    question: "다음을 계산하시오: \\(\\dfrac{14}{15} \\div \\dfrac{2}{15}\\). 값은?",
+    options: ["1", "7", "\\(\\dfrac{16}{15}\\)", "\\(\\dfrac{28}{15}\\)"],
+    answer: 1
+  },
+  {
+    question: "다음을 계산하시오: \\(\\dfrac{9}{10} \\div \\dfrac{3}{10}\\). 값은?",
+    options: ["1", "6", "3", "2"],
+    // 원문에서는 9/3=3을 힌트로 주었지만 여기서는 보기를 적절히 섞음
+    answer: 2
+  },
+  {
+    question: "다음을 계산하시오: \\(\\dfrac{12}{7} \\div \\dfrac{6}{7}\\). 값은?",
+    options: ["2", "\\(\\dfrac{12}{6} = 2\\)", "1", "6"],
+    // (풀이) 12/7 ÷ 6/7 = 2
+    answer: 0
+  },
+  {
+    question: "다음을 계산하시오: \\(\\dfrac{5}{6} \\div \\dfrac{1}{6}\\). 값은?",
+    options: ["1", "5", "\\(\\dfrac{6}{6}\\)", "30"],
+    answer: 1
+  },
+  {
+    question: "다음을 계산하시오: \\(\\dfrac{21}{25} \\div \\dfrac{7}{25}\\). 값은?",
+    options: ["\\(\\dfrac{21}{7} = 3\\)", "\\(\\dfrac{3}{25}\\)", "7", "1"],
+    answer: 0
+  },
+
+  // ---------------------------
+  // Set 3: 끈 자르기 (9/10 m -> 3/10 m 등) (5문제)
+  // ---------------------------
+  {
+    question: "길이가 \\(\\dfrac{9}{10}\\)m인 끈이 있습니다. 이 끈을 \\(\\dfrac{3}{10}\\)m씩 자르면 몇 도막이 될까요?",
+    options: ["1", "3", "5", "9"],
+    answer: 1
+  },
+  {
+    question: "길이가 \\(\\dfrac{6}{9}\\)m인 실이 있습니다. 이 실을 \\(\\dfrac{2}{9}\\)m씩 자르면 몇 도막이 될까요?",
+    options: ["2", "3", "4", "6"],
+    answer: 1
+  },
+  {
+    question: "길이가 \\(\\dfrac{4}{5}\\)m인 리본이 있습니다. 이를 \\(\\dfrac{2}{5}\\)m씩 자르면 총 몇 조각이 될까요?",
+    options: ["1", "2", "4", "10"],
+    answer: 1
+  },
+  {
+    question: "길이가 \\(\\dfrac{10}{14}\\)m인 끈이 있습니다. 이를 \\(\\dfrac{5}{14}\\)m씩 자르면 몇 도막이 될까요?",
+    options: ["1", "2", "5", "9"],
+    answer: 1
+  },
+  {
+    question: "길이가 \\(\\dfrac{8}{12}\\)m인 끈이 있습니다. 이를 \\(\\dfrac{2}{12}\\)m씩 자르면 총 몇 도막이 될까요?",
+    options: ["2", "4", "6", "8"],
+    answer: 1
+  },
+
+  // ---------------------------
+  // Set 4: 물 나누기 (6/7 L -> 2/7 L) (5문제)
+  // ---------------------------
+  {
+    question: "물 \\(\\dfrac{6}{7}\\)L를 한 컵에 \\(\\dfrac{2}{7}\\)L씩 똑같이 나누어 담으려고 합니다. 몇 개의 컵이 필요할까요?",
+    options: ["2", "3", "4", "6"],
+    answer: 1
+  },
+  {
+    question: "물 \\(\\dfrac{8}{9}\\)L를 한 컵에 \\(\\dfrac{4}{9}\\)L씩 담으려고 합니다. 몇 개의 컵이 필요할까요?",
+    options: ["1", "2", "3", "4"],
+    answer: 1
+  },
+  {
+    question: "물 \\(\\dfrac{3}{5}\\)L를 한 컵에 \\(\\dfrac{1}{5}\\)L씩 나누어 담으려고 합니다. 몇 개의 컵이 필요할까요?",
+    options: ["2", "3", "4", "5"],
+    answer: 1
+  },
+  {
+    question: "물 \\(\\dfrac{15}{20}\\)L를 한 컵에 \\(\\dfrac{3}{20}\\)L씩 담으려 합니다. 몇 개의 컵이 필요할까요?",
+    options: ["2", "3", "5", "6"],
+    answer: 2
+  },
+  {
+    question: "물 \\(\\dfrac{7}{10}\\)L를 한 컵에 \\(\\dfrac{7}{20}\\)L씩 똑같이 나누려 합니다. 몇 개의 컵이 필요할까요?",
+    options: ["2", "3", "4", "5"],
+    answer: 0
+  },
+
+  // ---------------------------
+  // Set 5: 두 분수 중 더 큰 값 (5문제)
+  // ---------------------------
+  {
+    question: "다음 두 분수를 각각 계산한 뒤, 더 큰 값을 구하세요.<br/>" +
+              "\\(\\dfrac{15}{19} \\div \\dfrac{3}{19}\\) 과 \\(\\dfrac{6}{11} \\div \\dfrac{1}{11}\\).",
+    options: ["2", "4", "5", "6"],
+    // 첫 번째: 15/19 ÷ 3/19 = 5, 두 번째: 6/11 ÷ 1/11 = 6 => 더 큰 값=6
+    answer: 3
+  },
+  {
+    question: "다음 두 분수를 각각 계산한 뒤, 더 큰 값을 구하세요.<br/>" +
+              "\\(\\dfrac{9}{10} \\div \\dfrac{3}{10}\\) 과 \\(\\dfrac{4}{5} \\div \\dfrac{1}{5}\\).",
+    options: ["2", "3", "4", "5"],
+    // 9/10 ÷ 3/10=3, 4/5 ÷1/5=4 => 더 큰 값=4
+    answer: 2
+  },
+  {
+    question: "다음 두 분수를 각각 계산한 뒤, 더 큰 값을 구하세요.<br/>" +
+              "\\(\\dfrac{8}{9} \\div \\dfrac{2}{9}\\) 과 \\(\\dfrac{10}{21} \\div \\dfrac{5}{21}\\).",
+    options: ["1", "2", "3", "4"],
+    // 8/9 ÷2/9=4, 10/21 ÷5/21=2 => 더 큰 값=4
+    answer: 3
+  },
+  {
+    question: "다음 두 분수를 각각 계산한 뒤, 더 큰 값을 구하세요.<br/>" +
+              "\\(\\dfrac{5}{6} \\div \\dfrac{1}{6}\\) 과 \\(\\dfrac{3}{14} \\div \\dfrac{2}{14}\\).",
+    options: ["1.5", "2", "3", "5"],
+    // 5/6 ÷1/6=5, 3/14 ÷2/14=1.5 => 더 큰 값=5
+    answer: 3
+  },
+  {
+    question: "다음 두 분수를 각각 계산한 뒤, 더 큰 값을 구하세요.<br/>" +
+              "\\(\\dfrac{21}{25} \\div \\dfrac{7}{25}\\) 과 \\(\\dfrac{12}{5} \\div \\dfrac{3}{5}\\).",
+    options: ["3", "3.5", "4", "5"],
+    // 21/25 ÷7/25=3, 12/5 ÷3/5=4 => 더 큰 값=4
+    answer: 2
+  },
+
+  // ---------------------------
+  // Set 6: (□/32)÷(3/32)=7 형태 (5문제)
+  // ---------------------------
+  {
+    question: "\\(\\dfrac{\\square}{32}\\)을 \\(\\dfrac{3}{32}\\)로 나누었더니 7이 되었습니다. \\(\\square\\)에 들어갈 수는 얼마입니까?",
+    options: ["3", "7", "21", "32"],
+    answer: 2
+  },
+  {
+    question: "\\(\\dfrac{\\square}{40}\\)을 \\(\\dfrac{5}{40}\\)로 나누었더니 6이 되었습니다. \\(\\square\\)에 들어갈 수는 얼마입니까?",
+    options: ["1", "6", "20", "30"],
+    answer: 3
+  },
+  {
+    question: "\\(\\dfrac{\\square}{25}\\)을 \\(\\dfrac{1}{25}\\)로 나누었더니 8이 되었습니다. \\(\\square\\)에 들어갈 수는 얼마입니까?",
+    options: ["6", "8", "20", "200"],
+    answer: 1
+  },
+  {
+    question: "\\(\\dfrac{\\square}{18}\\)을 \\(\\dfrac{2}{18}\\)로 나누었더니 9가 되었습니다. \\(\\square\\)에 들어갈 수는 얼마입니까?",
+    options: ["7", "9", "16", "18"],
+    answer: 3
+  },
+  {
+    question: "\\(\\dfrac{\\square}{24}\\)을 \\(\\dfrac{4}{24}\\)로 나누었더니 5가 되었습니다. \\(\\square\\)에 들어갈 수는 얼마입니까?",
+    options: ["1", "5", "8", "20"],
+    answer: 3
+  },
+
+  // ---------------------------
+  // Set 7: 계산 결과가 다른 것(Which is different) (5문제)
+  // ---------------------------
+  {
+    question: "다음 세 분수 나눗셈의 결과 중 계산값이 다른 하나는 어느 것입니까?<br/>" +
+              "① \\(\\dfrac{12}{13} \\div \\dfrac{3}{13}\\), ② \\(\\dfrac{15}{16} \\div \\dfrac{5}{16}\\), ③ \\(\\dfrac{4}{9} \\div \\dfrac{1}{9}\\)",
+    options: ["①", "②", "③", "④ 모두 같다"],
+    // ①=4, ②=3, ③=4 => 다른건 ②
+    answer: 1
+  },
+  {
+    question: "다음 세 분수 나눗셈의 결과 중 계산값이 다른 하나는 어느 것입니까?<br/>" +
+              "① \\(\\dfrac{10}{11} \\div \\dfrac{5}{11}\\), ② \\(\\dfrac{6}{7} \\div \\dfrac{2}{7}\\), ③ \\(\\dfrac{9}{14} \\div \\dfrac{3}{14}\\)",
+    options: ["①", "②", "③", "④ 모두 같다"],
+    // ①=2, ②=3, ③=3 => 다른건 ①
+    answer: 0
+  },
+  {
+    question: "다음 세 분수 나눗셈의 결과 중 계산값이 다른 하나는 어느 것입니까?<br/>" +
+              "① \\(\\dfrac{4}{5} \\div \\dfrac{1}{5}\\), ② \\(\\dfrac{10}{12} \\div \\dfrac{5}{12}\\), ③ \\(\\dfrac{8}{6} \\div \\dfrac{4}{6}\\)",
+    options: ["①", "②", "③", "④ 모두 같다"],
+    // ①=4, ②=2, ③=2 => 다른건 ①
+    answer: 0
+  },
+  {
+    question: "다음 세 분수 나눗셈의 결과 중 계산값이 다른 하나는 어느 것입니까?<br/>" +
+              "① \\(\\dfrac{9}{11} \\div \\dfrac{3}{11}\\), ② \\(\\dfrac{8}{9} \\div \\dfrac{2}{9}\\), ③ \\(\\dfrac{12}{15} \\div \\dfrac{4}{15}\\)",
+    options: ["①", "②", "③", "④ 모두 같다"],
+    // ①=3, ②=4, ③=3 => 다른건 ②
+    answer: 1
+  },
+  {
+    question: "다음 세 분수 나눗셈의 결과 중 계산값이 다른 하나는 어느 것입니까?<br/>" +
+              "① \\(\\dfrac{8}{9} \\div \\dfrac{1}{9}\\), ② \\(\\dfrac{16}{18} \\div \\dfrac{2}{18}\\), ③ \\(\\dfrac{10}{5} \\div \\dfrac{2}{5}\\)",
+    options: ["①", "②", "③", "④ 모두 같다"],
+    // ①=8, ②=8, ③=5 => 다른건 ③
+    answer: 2
+  },
+
+  // ---------------------------
+  // Set 8: (18/25) ÷ ? = (2/25) (5문제)
+  // ---------------------------
+  {
+    question: "\\(\\dfrac{18}{25}\\)을 어떤 수로 나누었더니 \\(\\dfrac{2}{25}\\)가 되었습니다. 어떤 수일까요?",
+    options: ["2", "4", "9", "18"],
+    // 18/25 ÷ x = 2/25 => x = (18/25)/(2/25)=9
+    answer: 2
+  },
+  {
+    question: "\\(\\dfrac{16}{20}\\)을 어떤 수로 나누었더니 \\(\\dfrac{4}{20}\\)가 되었습니다. 어떤 수일까요?",
+    options: ["1", "4", "16", "20"],
+    // (16/20) ÷ x = 4/20 => x= (16/20)/(4/20)=4
+    answer: 1
+  },
+  {
+    question: "\\(\\dfrac{12}{18}\\)을 어떤 수로 나누었더니 \\(\\dfrac{4}{18}\\)가 되었습니다. 어떤 수일까요?",
+    options: ["1", "2", "3", "4"],
+    // (12/18)/(4/18)=3
+    answer: 2
+  },
+  {
+    question: "\\(\\dfrac{15}{22}\\)를 어떤 수로 나누었더니 \\(\\dfrac{5}{22}\\)가 되었습니다. 어떤 수일까요?",
+    options: ["1", "2", "3", "5"],
+    // (15/22)/(5/22)=3
+    answer: 2
+  },
+  {
+    question: "\\(\\dfrac{9}{25}\\)를 어떤 수로 나누었더니 \\(\\dfrac{3}{25}\\)가 되었습니다. 어떤 수일까요?",
+    options: ["3", "6", "9", "12"],
+    // (9/25)/(3/25)=3
+    answer: 0
+  },
+
+  // ---------------------------
+  // Set 9: (7/8)÷(1/8)와 같은 값 찾기 (5문제)
+  // ---------------------------
+  {
+    question: "\\(\\dfrac{7}{8} \\div \\dfrac{1}{8}\\) 의 계산 결과와 같은 것은 어느 것입니까?",
+    options: ["8 ÷ 1 = 8", "7 ÷ 1 = 7", "7 ÷ 8", "8 ÷ 7"],
+    // 실제값=7 => "7 ÷1=7"이 동일
+    answer: 1
+  },
+  {
+    question: "\\(\\dfrac{6}{9} \\div \\dfrac{2}{9}\\) 의 계산 결과와 같은 것은 어느 것입니까?",
+    options: ["3 ÷ 3 = 1", "3 ÷ 1 = 3", "6 ÷ 9", "2 ÷ 3"],
+    // 6/9 ÷2/9=3 => "3 ÷1=3"
+    answer: 1
+  },
+  {
+    question: "\\(\\dfrac{10}{11} \\div \\dfrac{2}{11}\\) 의 계산 결과와 같은 것은 어느 것입니까?",
+    options: ["5 ÷ 2 = 2.5", "10 ÷ 2 = 5", "2 ÷ 10 = 0.2", "10 ÷ 5 = 2"],
+    // 10/11 ÷2/11=5 => "10 ÷2=5"
+    answer: 1
+  },
+  {
+    question: "\\(\\dfrac{9}{12} \\div \\dfrac{3}{12}\\) 의 계산 결과와 같은 것은 어느 것입니까?",
+    options: ["3 ÷ 1 = 3", "9 ÷ 3 = 3", "3 ÷ 9 = \\(\\dfrac{1}{3}\\)", "12 ÷ 3 = 4"],
+    // 9/12 ÷3/12=3 => "9÷3=3"
+    answer: 1
+  },
+  {
+    question: "\\(\\dfrac{12}{25} \\div \\dfrac{3}{25}\\) 의 계산 결과와 같은 것은 어느 것입니까?",
+    options: ["12 ÷ 3 = 4", "3 ÷ 12 = 0.25", "4 ÷ 3", "25 ÷ 3"],
+    // 12/25 ÷3/25=4 => "12÷3=4"
+    answer: 0
+  }
+
+]; // end of allQuestions (45 total)
+
+// ----------------------------------------------
+// 2) 유틸: 배열 섞기 (보기 섞기 + 문제 순서 섞기)
+// ----------------------------------------------
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const r = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[r]] = [arr[r], arr[i]];
+  }
+  return arr;
+}
+
+// ----------------------------------------------
+// 전역변수
+// ----------------------------------------------
+let questions = [];       // 셔플 후 문제 리스트
+let currentIndex = 0;     // 현재 문제 인덱스
+let score = 0;            // 점수
+let lives = 3;            // 남은 기회
+let timer = null;         // setInterval용
+let questionTimer = null; // 에너지바용 타이머
+let timeLeft = 0;         // 현재 문제에 남은 시간
+let pointsPerQuestion = 10; // 난이도별 점수
+let totalElapsedTime = 0; // 전체 경과시간
+let overallTimer = null;  // 전체 게임시간 타이머(계속 증가)
+let difficultyMode = "low"; // 난이도
+let playerName = "";      // 플레이어 이름
+
+// ----------------------------------------------
+// 게임 시작 함수
+// ----------------------------------------------
+function startGame() {
+  playerName = document.getElementById("nameInput").value.trim();
+  if (!playerName) {
+    alert("이름을 입력해주세요.");
+    return;
+  }
+  difficultyMode = document.getElementById("difficultySelect").value;
+
+  // 난이도별 초기 설정
+  let startTime = 0;
+  switch(difficultyMode) {
+    case "top":  // 최상
+      startTime = 20;
+      pointsPerQuestion = 20;
+      break;
+    case "high": // 상
+      startTime = 30;
+      pointsPerQuestion = 15;
+      break;
+    case "mid":  // 중
+      startTime = 40;
+      pointsPerQuestion = 13;
+      break;
+    case "low":  // 하
+      startTime = Infinity; // 시간제한 없음
+      pointsPerQuestion = 10;
+      break;
+  }
+
+  // 초기화
+  score = 0;
+  lives = 3;
+  currentIndex = 0;
+  totalElapsedTime = 0;
+  clearInterval(overallTimer);
+
+  document.getElementById("score").textContent = score;
+  document.getElementById("lives").textContent = lives;
+  document.getElementById("elapsedTime").textContent = totalElapsedTime;
+
+  // 문제 복제 & 문제 전체 셔플
+  questions = JSON.parse(JSON.stringify(allQuestions));
+  shuffleArray(questions);
+
+  // 화면 전환
+  document.getElementById("setupScreen").classList.add("hidden");
+  document.getElementById("gameScreen").classList.remove("hidden");
+  document.getElementById("endScreen").classList.add("hidden");
+
+  // 전체 시간 타이머
+  overallTimer = setInterval(() => {
+    totalElapsedTime++;
+    document.getElementById("elapsedTime").textContent = totalElapsedTime;
+  }, 1000);
+
+  // 첫 문제 표시
+  showQuestion(startTime);
+}
+
+// ----------------------------------------------
+// 문제 표시 함수
+// ----------------------------------------------
+function showQuestion(startTime) {
+  // 만약 문제를 모두 소진했다면 게임 종료
+  if (currentIndex >= questions.length) {
+    endGame();
+    return;
+  }
+
+  const q = questions[currentIndex];
+
+  // 문제 & 보기 섞기(보기 중복이 없도록, 하지만 여기서는 단순히 shuffle)
+  // 답이 중복되지 않게 이미 구성된 상태이므로 shuffle만 수행
+  let idxArr = [0,1,2,3];
+  shuffleArray(idxArr);
+
+  // options 재배치
+  let newOptions = [];
+  let correctIndex = 0;
+  for (let i=0; i<4; i++) {
+    newOptions.push(q.options[idxArr[i]]);
+    if (idxArr[i] === q.answer) {
+      correctIndex = i;
+    }
+  }
+
+  // 재할당
+  q.optionsShuffled = newOptions;
+  q.correctIndexShuffled = correctIndex;
+
+  // 문제 출력
+  const questionContainer = document.getElementById("questionContainer");
+  questionContainer.innerHTML = q.question;
+
+  // 보기 출력
+  const optionsContainer = document.getElementById("optionsContainer");
+  optionsContainer.innerHTML = "";
+  for (let i=0; i<4; i++) {
+    const btn = document.createElement("button");
+    btn.className = "option-button";
+    btn.innerHTML = "\\(" + q.optionsShuffled[i] + "\\)";
+    btn.addEventListener("click", () => handleAnswer(i));
+    optionsContainer.appendChild(btn);
+  }
+
+  // MathJax 렌더링
+  MathJax.typeset();
+
+  // 에너지바 초기화
+  if (difficultyMode === "low") {
+    // 하 난이도 => 시간제한 없음
+    document.getElementById("energyBarContainer").classList.add("hidden");
+    timeLeft = Infinity;
+  } else {
+    // 난이도별 남은 시간 설정
+    timeLeft = startTime;
+    document.getElementById("energyBarContainer").classList.remove("hidden");
+    updateEnergyBar();
+
+    // 혹시 이전 타이머 있으면 제거
+    clearInterval(questionTimer);
+
+    // 새 타이머 시작
+    questionTimer = setInterval(() => {
+      if (timeLeft === Infinity) return;
+      timeLeft -= 1;
+      if (timeLeft <= 0) {
+        // 시간 초과 => 기회 -1, 정답 표시 후 다음 문제
+        clearInterval(questionTimer);
+        timeLeft = 0;
+        lives--;
+        document.getElementById("lives").textContent = lives;
+        alert("시간 초과! 정답은: " + displayCorrectAnswer(q) );
+        if (lives <= 0) {
+          endGame();
+          return;
+        }
+        currentIndex++;
+        showQuestion(getStartTimeByDifficulty());
+      }
+      updateEnergyBar();
+    }, 1000);
+  }
+}
+
+// 난이도별 시작시간 다시 얻기(문제 넘어갈 때)
+function getStartTimeByDifficulty() {
+  switch(difficultyMode) {
+    case "top":  return 20;
+    case "high": return 30;
+    case "mid":  return 40;
+    case "low":  return Infinity;
+  }
+}
+
+// ----------------------------------------------
+// 보기 선택 핸들러
+// ----------------------------------------------
+function handleAnswer(choiceIndex) {
+  // 현재 문제
+  const q = questions[currentIndex];
+
+  // 정답 체크
+  if (choiceIndex === q.correctIndexShuffled) {
+    // 정답
+    score += pointsPerQuestion;
+    document.getElementById("score").textContent = score;
+  } else {
+    // 오답
+    lives--;
+    document.getElementById("lives").textContent = lives;
+    alert("오답입니다! 정답은: " + displayCorrectAnswer(q));
+    if (lives <= 0) {
+      endGame();
+      return;
+    }
+  }
+
+  // 다음 문제
+  clearInterval(questionTimer);
+  currentIndex++;
+  showQuestion(getStartTimeByDifficulty());
+}
+
+// 정답 문자열 생성
+function displayCorrectAnswer(q) {
+  // 정답 인덱스
+  const correctOpt = q.optionsShuffled[q.correctIndexShuffled];
+  return correctOpt;
+}
+
+// ----------------------------------------------
+// 에너지바 갱신
+// ----------------------------------------------
+function updateEnergyBar() {
+  const bar = document.getElementById("energyBar");
+  if (timeLeft === Infinity) {
+    bar.style.width = "100%";
+    return;
+  }
+  const startT = getStartTimeByDifficulty();
+  const ratio = (timeLeft / startT) * 100;
+  bar.style.width = ratio + "%";
+}
+
+// ----------------------------------------------
+// 게임 종료 함수
+// ----------------------------------------------
+function endGame() {
+  // 타이머 정리
+  clearInterval(questionTimer);
+  clearInterval(overallTimer);
+
+  // 최종 점수 표시
+  document.getElementById("finalScore").textContent = score;
+
+  // 화면 전환
+  document.getElementById("gameScreen").classList.add("hidden");
+  document.getElementById("endScreen").classList.remove("hidden");
+}
+
+// ----------------------------------------------
+// 점수 전송 함수 (문제에서 제공된 코드)
+// ----------------------------------------------
+function sendScore() {
+  saveData(
+    "분자끼리 나누어떨어지는 분수의 나눗셈",
+    playerName,
+    score,
+    totalElapsedTime
+  );
+}
+
+// ----------------------------------------------
+// 문제 제공된 서버 전송 함수
+// ----------------------------------------------
+async function saveData(game, name, score, elapsedTime) {
+  const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+
+  const requestData = {
+    game,
+    name,
+    score: parseInt(score, 10),
+    elapsedTime: parseInt(elapsedTime, 10)
+  };
+
+  try {
+    const response = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestData)
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok) {
+      document.getElementById('response').innerText = 
+        `성공: ${JSON.stringify(responseData, null, 2)}`;
+    } else {
+      document.getElementById('response').innerText = 
+        `오류: ${JSON.stringify(responseData, null, 2)}`;
+    }
+  } catch (error) {
+    console.error('요청 실패:', error);
+    document.getElementById('response').innerText = 
+      `네트워크 오류: ${error.message}`;
+  }
+}
+
+</script>
+</body>
+</html>
